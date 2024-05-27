@@ -3,8 +3,11 @@
 // import { name } from "ejs";
 import express from "express";
 import multer from "multer";
+import upload from "./utils/upload-img.js";
+import admin2Router from "./routes/admin2.js";
 
-const upload = multer({ dest: "tmp_uploads/" });
+//tmp_uploads 暫存的資料夾
+// const upload = multer({ dest: "tmp_uploads/" });
 
 const app = express();
 
@@ -12,12 +15,20 @@ const app = express();
 app.set("view engine", "ejs");
 
 //Top Level Middleware
+// 只會解析 application/x-www-form-urlencoded
 app.use(express.urlencoded({ extended: true }));
-
+// 只會解析 application/json
 app.use(express.json());
+
+//自訂頂層middleware
+app.use((req, res, next) => {
+  res.locals.title = "小新的網頁";
+  next();
+});
 
 // 設定路由, 只允許用 GET 拜訪
 app.get("/", (req, res) => {
+  res.locals.title = "首頁 | " + res.locals.title;
   res.render("home", { name: "Jin" });
 });
 
@@ -50,7 +61,7 @@ app.get("/try-post-form", (req, res) => {
   res.render("try-post-form");
 });
 
-// const urlencodeedParser = express.urlencoded({ extended: true });
+// const urlencodedParser = express.urlencoded({ extended: true });
 app.post("/try-post-form", (req, res) => {
   // res.json(req.body);
   res.render("try-post-form", req.body);
@@ -67,6 +78,34 @@ app.post("/try-upload", upload.single("avatar"), (req, res) => {
     file: req.file,
   });
 });
+
+//UPLOAD多個檔案到public/img
+app.post("/try-uploads", upload.array("photos"), (req, res) => {
+  res.json(req.files);
+});
+
+// 嚴謹的路徑規則
+app.get("my-params1/my", (req, res) => {
+  res.json("/my-params1/my");
+});
+
+// 寛鬆的路徑規則
+app.get("/my-params1/:action?/:id?", (req, res) => {
+  res.json(req.params);
+});
+app.get("/products/:pid", (req, res) => {
+  res.json(req.params.pid);
+});
+
+app.get(/^\/m\/09\d{2}-?\d{3}-?\d{3}$/i, (req, res) => {
+  let u = req.url.slice(3);
+  u = u.split("?")[0];
+  u = u.split("-").join("");
+  res.json({ u });
+});
+
+app.use("/admin2", admin2Router);
+// app.use(admin2Router);
 
 // 設定靜態內容資料夾
 app.use(express.static("public"));

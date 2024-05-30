@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <script>
+    const data1 = [[{ myVal: 100 }]];
+    const data2 = [[{ name: "peter" }, { name: "bill" }]];
+    const data3 = { myName: 'david' };
+
+    const [[{ myVal }]] = data1;
+    const [[_1, { name: myName }]] = data2;
+    console.log({ myVal, name });
+
+
+    ({ myName } = data3); // 使用已宣告過的變數時, 注意把整個設定敘述用小括號包起來
+    console.log({ myName });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    const detail = [{
+      name: 'Jin',
+      age: 18,
+      myFamily: {
+        dad: 'Tim',
+        mom: 'Jane'
+      }
+    }
+    ]
+    // myFamily: { dad, mom } 
+    const [{ name: uname, age, myFamily: { dad, mom } }] = detail
+
+    console.log(myFamily);
+
+  </script>
+</body>
+
+</html>

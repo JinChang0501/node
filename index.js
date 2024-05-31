@@ -9,6 +9,9 @@ import session from "express-session";
 import moment from "moment-timezone";
 import db from "./utils/connect-mysql.js";
 import abRouter from "./routes/address-book.js";
+import cors from "cors";
+import mysql_session from "express-mysql-session";
+import bcrypt from "bcrypt";
 
 //tmp_uploads 暫存的資料夾
 // const upload = multer({ dest: "tmp_uploads/" });
@@ -24,11 +27,24 @@ app.use(express.urlencoded({ extended: true }));
 // 只會解析 application/json
 app.use(express.json());
 
+const corsOptions = {
+  Credentials: true,
+  origin: function (origin, callback) {
+    console.log({ origin });
+    callback(null, true); //全部允許
+  },
+};
+
+app.use(cors(corsOptions));
+
+const MysqlStore = mysql_session(session);
+const sessionStore = new MysqlStore({}, db);
 app.use(
   session({
     saveUninitialized: false,
     resave: false,
     secret: "加密",
+    store: sessionStore,
     cookie: {
       maxAge: 1200_000,
     },
@@ -38,6 +54,8 @@ app.use(
 //自訂頂層middleware
 app.use((req, res, next) => {
   res.locals.title = "小新的網頁";
+res.locals.session = req.session;
+
   next();
 });
 //*********************Router***************
@@ -169,6 +187,51 @@ app.get("/try-db", async (req, res) => {
 
   res.json({ result, fields });
 });
+
+//login
+app.get("/login", async (req, res) => {
+  res.render("login");
+});
+
+app.post("/login", upload.none(), async (req, res) => {
+  const output = {
+    success: false,
+    code: 0,
+    body: req.body,
+  };
+
+  const sql = "SELECT * FROM members WHERE email=?";
+  const [rows] = await db.query(sql, [req.body.email]);
+
+  if (!rows.length) {
+    output.code = 400;
+    return res.json(output);
+  }
+
+  const result = await bcrypt.compare(req.body.password, rows[0].password);
+
+  if (!result) {
+    //密碼是錯的
+    output.code = 420;
+    return res.json(output);
+  }
+  output.success = true;
+  //把狀態記錄在session裡
+  req.session.admin = {
+    id: rows[0].id,
+    email: rows[0].email,
+    nickname: rows[0].nickname,
+  };
+  res.json(output);
+});
+
+app.get("/logout", (req,res)=>{
+  delete req.session.admin;
+  res.redirect("/")
+})
+
+
+
 
 //*****************/
 // 設定靜態內容資料夾

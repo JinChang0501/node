@@ -1,8 +1,7 @@
 import express from "express";
 import moment from "moment-timezone";
 import db from "./../utils/connect-mysql.js";
-import upload from "./../utils/upload-img.js"
-
+import upload from "./../utils/upload-img.js";
 
 const dateFormat = "YYYY-MM-DD";
 const router = express.Router();
@@ -27,7 +26,7 @@ const getListData = async (req) => {
     // where += ` AND \`name\` LIKE '%${keyword}%' `; // 沒有處理 SQL injection
     const keyword_ = db.escape(`%${keyword}%`);
     console.log(keyword_);
-    where += ` AND \`name\` LIKE ${keyword_} `; // 處理 SQL injection
+    where += ` AND (\`name\` LIKE ${keyword_} OR \`mobile\` LIKE ${keyword_})`; // 處理 SQL injection
   }
   if (birth_begin) {
     const m = moment(birth_begin);
@@ -60,7 +59,8 @@ const getListData = async (req) => {
     console.log(sql);
     [rows] = await db.query(sql);
     rows.forEach((el) => {
-      el.birthday = moment(el.birthday).format(dateFormat);
+      const m = moment(el.birthday);
+      el.birthday = m.isValid() ? m.format(dateFormat) : "";
     });
   }
   success = true;
@@ -74,6 +74,22 @@ const getListData = async (req) => {
     qs: req.query,
   };
 };
+
+//middleware
+router.use((req, res, next) => {
+  let u = req.url.split("?")[0];
+  if (u === "/") {
+    return next();
+  }
+
+  if (req.session.admin) {
+    //有登入
+    next();
+  } else {
+    //沒登入，就跳到登入頁
+    res.redirect("/login")
+  }
+});
 
 router.get("/", async (req, res) => {
   res.locals.title = "通訊錄列表 | " + res.locals.title;
@@ -105,11 +121,9 @@ router.post("/add", [upload.none()], async (req, res) => {
 */
 
 router.post("/add", async (req, res) => {
+  //TODO:欄位資料檢查
 
-
-//TODO:欄位資料檢查
-
-/*const sql = "INSERT INTO `address_book`( `name`, `email`, `mobile`, `birthday`, `address`, `created_at`) VALUES (?,?,?,?,?,NOW());"
+  /*const sql = "INSERT INTO `address_book`( `name`, `email`, `mobile`, `birthday`, `address`, `created_at`) VALUES (?,?,?,?,?,NOW());"
 const [ result ] = await db.query(sql, [
   req.body.name,
   req.body.email,
@@ -120,21 +134,21 @@ const [ result ] = await db.query(sql, [
 res.json(result);
 */
 
-  let body = {...req.body}
+  let body = { ...req.body };
   body.created_at = new Date();
 
-  const m = moment(body.birthday)
-  body.birthday = m.isValid()?m.format(dateFormat):null;
+  const m = moment(body.birthday);
+  body.birthday = m.isValid() ? m.format(dateFormat) : null;
 
-  const sql = "INSERT INTO address_book SET ?"
-  const [result] = await db.query(sql,[body])
+  const sql = "INSERT INTO address_book SET ?";
+  const [result] = await db.query(sql, [body]);
 
   res.json({
-    result, 
-    success: !! result.affectedRows
+    result,
+    success: !!result.affectedRows,
   });
 
-/*
+  /*
 {
   "fieldCount": 0,
   "affectedRows": 1,
@@ -151,7 +165,7 @@ router.delete("/api/:sid", async (req, res) => {
   const output = {
     success: false,
     code: 0,
-    result: {}
+    result: {},
   };
   const sid = +req.params.sid || 0;
   if (!sid) {
@@ -160,9 +174,48 @@ router.delete("/api/:sid", async (req, res) => {
   const sql = `DELETE FROM address_book WHERE sid=${sid}`;
   const [result] = await db.query(sql);
   output.result = result;
-  output.success = !! result.affectedRows;
+  output.success = !!result.affectedRows;
   res.json(output);
 });
 
+// 編輯的表單頁
+router.get("/edit/:sid", async (req, res) => {
+  const sid = +req.params.sid || 0;
+  if (!sid) {
+    return res.redirect("/address-book");
+  }
+  const sql = `SELECT * FROM address_book WHERE sid=${sid}`;
+  const [rows] = await db.query(sql);
+  if (!rows.length) {
+    // 沒有該筆資料
+    return res.redirect("/address-book");
+  }
+
+  rows[0].birthday = moment(rows[0].birthday).format(dateFormat);
+  res.render("address-book/edit", rows[0]);
+});
+
+// 處理編輯的表單
+router.put("/api/:sid", upload.none(), async (req, res) => {
+  const output = {
+    success: false,
+    code: 0,
+    result: {},
+  };
+  const sid = +req.params.sid || 0;
+  if (!sid) {
+    return res.json(output);
+  }
+
+  try {
+    const sql = "UPDATE `address_book` SET ? WHERE sid=? ";
+    const [result] = await db.query(sql, [req.body, sid]);
+    output.result = result;
+    output.success = !!(result.affectedRows && result.changedRows);
+  } catch (ex) {
+    output.error = ex;
+  }
+  res.json(output);
+});
 
 export default router;

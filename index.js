@@ -12,6 +12,8 @@ import abRouter from "./routes/address-book.js";
 import cors from "cors";
 import mysql_session from "express-mysql-session";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import { name } from "ejs";
 
 //tmp_uploads 暫存的資料夾
 // const upload = multer({ dest: "tmp_uploads/" });
@@ -54,7 +56,7 @@ app.use(
 //自訂頂層middleware
 app.use((req, res, next) => {
   res.locals.title = "小新的網頁";
-res.locals.session = req.session;
+  res.locals.session = req.session;
 
   next();
 });
@@ -225,14 +227,43 @@ app.post("/login", upload.none(), async (req, res) => {
   res.json(output);
 });
 
-app.get("/logout", (req,res)=>{
+app.get("/logout", (req, res) => {
   delete req.session.admin;
-  res.redirect("/")
-})
+  res.redirect("/");
+});
 
+//JWT
+app.get("/jwt1", (req, res) => {
+  const data = {
+    id: 17,
+    name: "Jin",
+  };
+  const token = jwt.sign(data, process.env.JWT_KEY);
+  res.send(token);
+  //eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTcsIm5hbWUiOiJKaW4iLCJpYXQiOjE3MTkxOTM0NzN9.x25mHOmZtw9pmUols8_KYrkGKZnxglcj10xw0QkwqRo
+});
 
+//驗證
+app.get("/jwt2", (req, res) => {
+  const token =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTcsIm5hbWUiOiJKaW4iLCJpYXQiOjE3MTkxOTM0NzN9.x25mHOmZtw9pmUols8_KYrkGKZnxglcj10xw0QkwqRo";
+  const payload = jwt.verify(token, process.env.JWT_KEY);
+  res.send(payload);
+});
 
+//密碼錯誤 try catch
+app.get("/jwt3", (req, res) => {
+  const token =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTcsIm5hbWUiOiJKaW4iLCJpYXQiOjE3MTkxOTM0NzN9.x25mHOmZtw9pmUols8_KYrkGKZnxglcj10xw0QkwqRo_";
+  let payload = {};
+  try {
+    payload = jwt.verify(token, process.env.JWT_KEY);
+  } catch (ex) {
+    payload = { ex };
+  }
 
+  res.send(payload);
+});
 //*****************/
 // 設定靜態內容資料夾
 app.use(express.static("public"));

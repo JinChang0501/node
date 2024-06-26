@@ -58,6 +58,13 @@ app.use((req, res, next) => {
   res.locals.title = "小新的網頁";
   res.locals.session = req.session;
 
+  const auth = req.get("Authorization"); //先拿到檔頭的Authorization項目值
+  if (auth && auth.indexOf("Bearer ") === 0) {
+    const token = auth.slice(7);
+  }
+  try {
+    req.my_jwt = jwt.verify(token, process.env.JWT_KEY);
+  } catch (ex) {}
   next();
 });
 //*********************Router***************
@@ -230,6 +237,51 @@ app.post("/login", upload.none(), async (req, res) => {
 app.get("/logout", (req, res) => {
   delete req.session.admin;
   res.redirect("/");
+});
+
+app.post("/login-jwt", async (req, res) => {
+  const output = {
+    success: false,
+    code: 0,
+    body: req.body,
+    data: {
+      sid: 0,
+      email: "",
+      nickname: "",
+      token: "",
+    },
+  };
+  const sql = "SELECT * FROM members WHERE email=?";
+  const [rows] = await db.query(sql, [req.body.email]);
+  if (!rows.length) {
+    // 帳號是錯的
+    output.code = 400;
+    return res.json(output);
+  }
+  const result = await bcrypt.compare(req.body.password, rows[0].password);
+  if (!result) {
+    // 密碼是錯的
+    output.code = 420;
+    return res.json(output);
+  }
+  output.success = true;
+  // 沒有要記錄登入狀態, 打包 JWT
+  const payload = {
+    id: rows[0].id,
+    email: rows[0].email,
+  };
+  const token = jwt.sign(payload, process.env.JWT_KEY);
+  output.data = {
+    id: rows[0].id,
+    email: rows[0].email,
+    nickname: rows[0].nickname,
+    token,
+  };
+  res.json(output);
+});
+
+app.get("/jwt-data", (req, res) => {
+  res.json(req.my_jwt);
 });
 
 //JWT

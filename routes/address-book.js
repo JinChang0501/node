@@ -75,21 +75,30 @@ const getListData = async (req) => {
   };
 };
 
+//模擬網路延遲
 //middleware
-router.use((req, res, next) => {
-  let u = req.url.split("?")[0];
-  if (["/","/api"].includes(u)) {
-    return next();
-  }
+// router.use((req, res, next) => {
+//   const ms = 100 + Math.floor(Math.random() * 2000);
+//   setTimeout(() => {
+//     next();
+//   }, ms);
+// });
 
-  if (req.session.admin) {
-    //有登入
-    next();
-  } else {
-    //沒登入，就跳到登入頁
-    res.redirect("/login")
-  }
-});
+// 登入才可以新增 middleware
+// router.use((req, res, next) => {
+//   let u = req.url.split("?")[0];
+//   if (["/", "/api"].includes(u)) {
+//     return next();
+//   }
+
+//   if (req.session.admin) {
+//     //有登入
+//     next();
+//   } else {
+//     //沒登入，就跳到登入頁
+//     res.redirect("/login");
+//   }
+// });
 
 router.get("/", async (req, res) => {
   res.locals.title = "通訊錄列表 | " + res.locals.title;
@@ -195,6 +204,24 @@ router.get("/edit/:sid", async (req, res) => {
   res.render("address-book/edit", rows[0]);
 });
 
+//取得單向資料API// 編輯的表單頁
+router.get("/api/:sid", async (req, res) => {
+  const sid = +req.params.sid || 0;
+  if (!sid) {
+    return res.json({ success: false, error: "沒有編號" });
+  }
+  const sql = `SELECT * FROM address_book WHERE sid=${sid}`;
+  const [rows] = await db.query(sql);
+  if (!rows.length) {
+    // 沒有該筆資料
+    return res.json({ success: false, error: "沒有該筆資料" });
+  }
+
+  const m = moment(rows[0].birthday);
+  rows[0].birthday = m.isValid ? m.format(dateFormat) : "";
+  res.json({ success: true, data: rows[0] });
+});
+
 // 處理編輯的表單
 router.put("/api/:sid", upload.none(), async (req, res) => {
   const output = {
@@ -207,9 +234,13 @@ router.put("/api/:sid", upload.none(), async (req, res) => {
     return res.json(output);
   }
 
+  let body = { ...req.body };
+  const m = moment(body.birthday);
+  body.birthday = m.isValid() ? m.format(dateFormat) : null;
+
   try {
     const sql = "UPDATE `address_book` SET ? WHERE sid=? ";
-    const [result] = await db.query(sql, [req.body, sid]);
+    const [result] = await db.query(sql, [body, sid]);
     output.result = result;
     output.success = !!(result.affectedRows && result.changedRows);
   } catch (ex) {

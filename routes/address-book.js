@@ -176,8 +176,15 @@ router.delete("/api/:sid", async (req, res) => {
     code: 0,
     result: {},
   };
+  if (!req.my_jwt?.id) {
+    //沒有登入
+    output.code = 470;
+    return res.json(output);
+  }
+
   const sid = +req.params.sid || 0;
   if (!sid) {
+    output.coed = 480;
     return res.json(output);
   }
   const sql = `DELETE FROM address_book WHERE sid=${sid}`;
